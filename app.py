@@ -74,7 +74,7 @@ if api_key:
     with col2:
         vid_files = st.file_uploader("🎥 動画（最大3個 / 各2~15秒）", type=["mp4", "mov"], accept_multiple_files=True)
     with col3:
-        aud_files = st.file_uploader("🎵 音声（最大3個 / 各2~15秒）", type=["wav", "mp3"], accept_multiple_files=True)
+        aud_files = st.file_uploader("🎵 音声（最大3個 / 各2~15秒）", type=["wav", "mp3", "m4a", "aac", "ogg", "flac"], accept_multiple_files=True)
 
     num_imgs = len(img_files) if img_files else 0
     num_vids = len(vid_files) if vid_files else 0
