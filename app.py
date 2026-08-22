@@ -1,18 +1,20 @@
-import streamlit as st
-import google.generativeai as genai
+import os
+import tempfile
 from PIL import Image
+import google.generativeai as genai
+import streamlit as st
 
 # --------------------------------------------------------------------------------
 # 1. ページ基本設定
 # --------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="MiniMax H3 Prompt Generator",
-    page_icon="🎬",
-    layout="wide"
+    page_title="MiniMax H3 Prompt Generator", page_icon="🎬", layout="wide"
 )
 
 st.title("🎬 MiniMax H3 プロンプトメーカー")
-st.caption("MiniMax H3の公式規格に完全準拠した英語プロンプト＆和訳を自動生成します。")
+st.caption(
+    "MiniMax H3の公式規格に完全準拠した英語プロンプト＆和訳を自動生成します。"
+)
 
 # --------------------------------------------------------------------------------
 # 2. モード選択（FL2VA ➔ Ref2VAの順）
@@ -20,11 +22,11 @@ st.caption("MiniMax H3の公式規格に完全準拠した英語プロンプト�
 mode = st.radio(
     "生成モードを選択してください：",
     [
-        "🎞️ FL2VA (T2V / I2V / FL2V: キーフレーム補間)", 
-        "🔥 Ref2VA (オムニ参照: キャラの固定・音声合成)"
+        "🎞️ FL2VA (T2V / I2V / FL2V: キーフレーム補間)",
+        "🔥 Ref2VA (オムニ参照: キャラの固定・音声合成)",
     ],
     index=0,
-    horizontal=True
+    horizontal=True,
 )
 
 st.markdown("---")
@@ -32,7 +34,10 @@ st.markdown("---")
 # --------------------------------------------------------------------------------
 # 3. 使い方・ガイドテキスト (モード連動)
 # --------------------------------------------------------------------------------
-with st.expander("📖 アプリの使い方と入力例（初めての方はこちらを開いてください）", expanded=True):
+with st.expander(
+    "📖 アプリの使い方と入力例（初めての方はこちらを開いてください）",
+    expanded=True,
+):
     if "FL2VA" in mode:
         st.markdown("""
 ### 💡 FL2VAモードの使い方 (T2V / I2V / FL2V)
@@ -57,7 +62,10 @@ with st.expander("📖 アプリの使い方と入力例（初めての方はこ
 # --------------------------------------------------------------------------------
 st.sidebar.header("🔑 APIキー設定")
 api_key = st.sidebar.text_input("Gemini API Key を入力", type="password")
-st.sidebar.markdown("<small>※入力されたキーは生成のみに使用され、保存されません。</small>", unsafe_allow_html=True)
+st.sidebar.markdown(
+    "<small>※入力されたキーは生成のみに使用され、保存されません。</small>",
+    unsafe_allow_html=True,
+)
 
 # --------------------------------------------------------------------------------
 # 5. メイン処理部
@@ -70,31 +78,45 @@ if api_key:
     # A. FL2VA モードの処理 (T2V / I2V)
     # ============================================================================
     if "FL2VA" in mode:
-        st.subheader("1. キーフレーム画像のアップロード（T2Vの場合は不要）")
+        st.subheader(
+            "1. キーフレーム画像のアップロード（T2Vの場合は不要）"
+        )
         col1, col2 = st.columns(2)
         with col1:
-            first_frame = st.file_uploader("🖼️ 1stフレーム（開始画像 / <Picture 1>）", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=False)
+            first_frame = st.file_uploader(
+                "🖼️ 1stフレーム（開始画像 / <Picture 1>）",
+                type=["png", "jpg", "jpeg", "webp"],
+                accept_multiple_files=False,
+            )
         with col2:
-            last_frame = st.file_uploader("🖼️ Lastフレーム（終了画像 / <Picture 2>）", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=False)
+            last_frame = st.file_uploader(
+                "🖼️ Lastフレーム（終了画像 / <Picture 2>）",
+                type=["png", "jpg", "jpeg", "webp"],
+                accept_multiple_files=False,
+            )
 
         st.markdown("---")
         st.subheader("2. 動画のストーリー・フレーム間の変化を指定")
         user_summary = st.text_area(
             "作りたい動画の展開、または1stからLastへ向けての変化・アクションを入力してください（日本語OK）",
-            placeholder="例：<Picture 1>のキャラクターが剣を振り下ろし、爆発とともに<Picture 2>のポーズに変化する。"
+            placeholder="例：<Picture 1>のキャラクターが剣を振り下ろし、爆発とともに<Picture 2>のポーズに変化する。",
         )
 
         if st.button("🚀 FL2VAプロンプトを自動生成"):
             if not first_frame and not user_summary:
                 st.warning("テキスト概要、または画像を入力してください。")
             else:
-                with st.spinner("FL2VA公式規格（3ブロック構造）へ変換中..."):
+                with st.spinner(
+                    "FL2VA公式規格（3ブロック構造）へ変換中..."
+                ):
                     prompt_inputs = []
                     frame_info = ""
-                    
+
                     if first_frame:
                         prompt_inputs.append(Image.open(first_frame))
-                        frame_info += "- <Picture 1>: 1stフレーム（開始画像）\n"
+                        frame_info += (
+                            "- <Picture 1>: 1stフレーム（開始画像）\n"
+                        )
                     if last_frame:
                         prompt_inputs.append(Image.open(last_frame))
                         frame_info += f"- <Picture {'2' if first_frame else '1'}>: Lastフレーム（終了画像）\n"
@@ -133,10 +155,21 @@ non_diegetic_music:
                     st.markdown("---")
                     st.subheader("✨ 生成結果")
                     if "===JAPANESE_TRANSLATION===" in response.text:
-                        parts = response.text.split("===JAPANESE_TRANSLATION===")
-                        tab_en, tab_ja = st.tabs(["📋 生成プロンプト (英語)", "🇯🇵 日本語訳"])
-                        with tab_en: st.code(parts[0].replace("===ENGLISH_PROMPT===", "").strip(), language="text")
-                        with tab_ja: st.markdown(parts[1].strip())
+                        parts = response.text.split(
+                            "===JAPANESE_TRANSLATION==="
+                        )
+                        tab_en, tab_ja = st.tabs(
+                            ["📋 生成プロンプト (英語)", "🇯🇵 日本語訳"]
+                        )
+                        with tab_en:
+                            st.code(
+                                parts[0]
+                                .replace("===ENGLISH_PROMPT===", "")
+                                .strip(),
+                                language="text",
+                            )
+                        with tab_ja:
+                            st.markdown(parts[1].strip())
                     else:
                         st.code(response.text, language="text")
 
@@ -144,14 +177,28 @@ non_diegetic_music:
     # B. Ref2VA モードの処理 (マルチ参照)
     # ============================================================================
     else:
-        st.subheader("1. 参照ファイルのアップロード（合計最大12個まで）")
+        st.subheader(
+            "1. 参照ファイルのアップロード（合計最大12個まで）"
+        )
         col1, col2, col3 = st.columns(3)
         with col1:
-            img_files = st.file_uploader("🖼️ 画像（最大9枚）", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True)
+            img_files = st.file_uploader(
+                "🖼️ 画像（最大9枚）",
+                type=["png", "jpg", "jpeg", "webp"],
+                accept_multiple_files=True,
+            )
         with col2:
-            vid_files = st.file_uploader("🎥 動画（最大3個 / 各2~15秒）", type=["mp4", "mov"], accept_multiple_files=True)
+            vid_files = st.file_uploader(
+                "🎥 動画（最大3個 / 各2~15秒）",
+                type=["mp4", "mov"],
+                accept_multiple_files=True,
+            )
         with col3:
-            aud_files = st.file_uploader("🎵 音声（最大3個 / 各2~15秒）", type=["wav", "mp3", "m4a", "aac", "ogg", "flac"], accept_multiple_files=True)
+            aud_files = st.file_uploader(
+                "🎵 音声（最大3個 / 各2~15秒）",
+                type=["wav", "mp3", "m4a", "aac", "ogg", "flac"],
+                accept_multiple_files=True,
+            )
 
         num_imgs = len(img_files) if img_files else 0
         num_vids = len(vid_files) if vid_files else 0
@@ -159,63 +206,145 @@ non_diegetic_music:
         total_files = num_imgs + num_vids + num_auds
 
         if total_files > 12:
-            st.error(f"⚠️ ファイル合計が12個を超えています（現在: {total_files}個）。12個以下にしてください。")
+            st.error(
+                f"⚠️ ファイル合計が12個を超えています（現在: {total_files}個）。12個以下にしてください。"
+            )
         elif num_auds > 0 and (num_imgs == 0 and num_vids == 0):
-            st.warning("⚠️ 音声ファイル単体では使用できません。必ず画像または動画と一緒にアップロードしてください。")
+            st.warning(
+                "⚠️ 音声ファイル単体では使用できません。必ず画像または動画と一緒にアップロードしてください。"
+            )
         else:
             file_instructions = []
             if total_files > 0:
                 st.markdown("---")
-                st.subheader("2. 各ファイルの「役割」と「使用部分」を指定")
+                st.subheader(
+                    "2. 各ファイルの「役割」と「使用部分」を指定"
+                )
                 if img_files:
                     st.markdown("#### 🖼️ 画像のガイド")
                     for i, file in enumerate(img_files, 1):
                         c1, c2 = st.columns([1, 2])
                         with c1:
-                            role = st.selectbox(f"<Picture {i}> の役割", ["人物・身元", "衣装・小道具", "背景・環境", "構図", "スタイル"], key=f"r_img_{i}")
+                            role = st.selectbox(
+                                f"<Picture {i}> の役割",
+                                [
+                                    "人物・身元",
+                                    "衣装・小道具",
+                                    "背景・環境",
+                                    "構図",
+                                    "スタイル",
+                                ],
+                                key=f"r_img_{i}",
+                            )
                         with c2:
-                            detail = st.text_input(f"<Picture {i}> のどの部分を使うか？", placeholder="例：顔と髪型だけ、服装だけ", key=f"r_img_d_{i}")
-                        file_instructions.append(f"- <Picture {i}>: 役割=[{role}], 指示=[{detail if detail else '全体'}]")
-                
+                            detail = st.text_input(
+                                f"<Picture {i}> のどの部分を使うか？",
+                                placeholder="例：顔と髪型だけ、服装だけ",
+                                key=f"r_img_d_{i}",
+                            )
+                        file_instructions.append(
+                            f"- <Picture {i}>: 役割=[{role}], 指示=[{detail if detail else '全体'}]"
+                        )
+
                 if vid_files:
                     st.markdown("#### 🎥 動画のガイド")
                     for i, file in enumerate(vid_files, 1):
                         c1, c2 = st.columns([1, 2])
                         with c1:
-                            role = st.selectbox(f"<Video {i}> の役割", ["ダンス・アクション", "カメラワーク", "全体構造"], key=f"r_vid_{i}")
+                            role = st.selectbox(
+                                f"<Video {i}> の役割",
+                                [
+                                    "ダンス・アクション",
+                                    "カメラワーク",
+                                    "全体構造",
+                                ],
+                                key=f"r_vid_{i}",
+                            )
                         with c2:
-                            detail = st.text_input(f"<Video {i}> のどの部分を使うか？", placeholder="例：ダンスモーションだけ", key=f"r_vid_d_{i}")
-                        file_instructions.append(f"- <Video {i}>: 役割=[{role}], 指示=[{detail if detail else '全体の動き'}]")
+                            detail = st.text_input(
+                                f"<Video {i}> のどの部分を使うか？",
+                                placeholder="例：ダンスモーションだけ",
+                                key=f"r_vid_d_{i}",
+                            )
+                        file_instructions.append(
+                            f"- <Video {i}>: 役割=[{role}], 指示=[{detail if detail else '全体の動き'}]"
+                        )
 
                 if aud_files:
                     st.markdown("#### 🎵 音声のガイド")
                     for i, file in enumerate(aud_files, 1):
                         c1, c2 = st.columns([1, 2])
                         with c1:
-                            role = st.selectbox(f"<Audio {i}> の役割", ["声質（クローン）", "リップシンク用ボーカル", "BGM", "効果音"], key=f"r_aud_{i}")
+                            role = st.selectbox(
+                                f"<Audio {i}> の役割",
+                                [
+                                    "声質（クローン）",
+                                    "リップシンク用ボーカル",
+                                    "BGM",
+                                    "効果音",
+                                ],
+                                key=f"r_aud_{i}",
+                            )
                         with c2:
-                            detail = st.text_input(f"<Audio {i}> のどの部分を使うか？", placeholder="例：声質だけ、テンポだけ", key=f"r_aud_d_{i}")
-                        file_instructions.append(f"- <Audio {i}>: 役割=[{role}], 指示=[{detail if detail else '全体の音'}]")
+                            detail = st.text_input(
+                                f"<Audio {i}> のどの部分を使うか？",
+                                placeholder="例：声質だけ、テンポだけ",
+                                key=f"r_aud_d_{i}",
+                            )
+                        file_instructions.append(
+                            f"- <Audio {i}>: 役割=[{role}], 指示=[{detail if detail else '全体の音'}]"
+                        )
 
             st.markdown("---")
             st.subheader("3. 動画の全体ストーリー・概要")
-            user_summary = st.text_area("動画のストーリーやセリフ（日本語OK）", placeholder="例：<Picture 1>の女の子が<Audio 1>の声で喋る")
+            user_summary = st.text_area(
+                "動画のストーリーやセリフ（日本語OK）",
+                placeholder="例：<Picture 1>の女の子が<Audio 1>の声で喋る",
+            )
 
             if st.button("🚀 Ref2VAプロンプトを自動生成"):
-                with st.spinner("Ref2VA公式規格（6セクション構造）へ変換中..."):
+                with st.spinner(
+                    "Ref2VA公式規格（6セクション構造）へ変換中..."
+                ):
                     prompt_inputs = []
-                    if img_files:
-                        for f in img_files: 
-                            prompt_inputs.append(Image.open(f))
-                    if vid_files:
-                        for f in vid_files: 
-                            prompt_inputs.append(genai.upload_file(f, mime_type=f.type))
-                    if aud_files:
-                        for f in aud_files: 
-                            prompt_inputs.append(genai.upload_file(f, mime_type=f.type))
+                    temp_files = []
 
-                    formatted_instructions = "\n".join(file_instructions)
-                    system_prompt = f"""
+                    try:
+                        # 1. 画像の追加
+                        if img_files:
+                            for f in img_files:
+                                prompt_inputs.append(Image.open(f))
+
+                        # 2. 動画の追加（一時ファイル保存経由）
+                        if vid_files:
+                            for f in vid_files:
+                                ext = os.path.splitext(f.name)[1] or ".mp4"
+                                with tempfile.NamedTemporaryFile(
+                                    delete=False, suffix=ext
+                                ) as tmp:
+                                    tmp.write(f.read())
+                                    tmp_path = tmp.name
+                                temp_files.append(tmp_path)
+                                prompt_inputs.append(
+                                    genai.upload_file(tmp_path, mime_type=f.type)
+                                )
+
+                        # 3. 音声の追加（一時ファイル保存経由）
+                        if aud_files:
+                            for f in aud_files:
+                                ext = os.path.splitext(f.name)[1] or ".mp3"
+                                with tempfile.NamedTemporaryFile(
+                                    delete=False, suffix=ext
+                                ) as tmp:
+                                    tmp.write(f.read())
+                                    tmp_path = tmp.name
+                                temp_files.append(tmp_path)
+                                prompt_inputs.append(
+                                    genai.upload_file(tmp_path, mime_type=f.type)
+                                )
+
+                        formatted_instructions = "\n".join(file_instructions)
+                        system_prompt = f"""
 あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専門プロンプト生成AIです。
 以下の素材指示と動画概要から、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
 
@@ -249,18 +378,38 @@ non_diegetic_music:
 【ユーザーの動画概要】
 {user_summary}
 """
-                    prompt_inputs.insert(0, system_prompt)
-                    response = model.generate_content(prompt_inputs)
+                        prompt_inputs.insert(0, system_prompt)
+                        response = model.generate_content(prompt_inputs)
 
-                    st.markdown("---")
-                    st.subheader("✨ 生成結果")
-                    if "===JAPANESE_TRANSLATION===" in response.text:
-                        parts = response.text.split("===JAPANESE_TRANSLATION===")
-                        tab_en, tab_ja = st.tabs(["📋 生成プロンプト (英語)", "🇯🇵 日本語訳"])
-                        with tab_en: st.code(parts[0].replace("===ENGLISH_PROMPT===", "").strip(), language="text")
-                        with tab_ja: st.markdown(parts[1].strip())
-                    else:
-                        st.code(response.text, language="text")
+                        st.markdown("---")
+                        st.subheader("✨ 生成結果")
+                        if "===JAPANESE_TRANSLATION===" in response.text:
+                            parts = response.text.split(
+                                "===JAPANESE_TRANSLATION==="
+                            )
+                            tab_en, tab_ja = st.tabs(
+                                ["📋 生成プロンプト (英語)", "🇯🇵 日本語訳"]
+                            )
+                            with tab_en:
+                                st.code(
+                                    parts[0]
+                                    .replace("===ENGLISH_PROMPT===", "")
+                                    .strip(),
+                                    language="text",
+                                )
+                            with tab_ja:
+                                st.markdown(parts[1].strip())
+                        else:
+                            st.code(response.text, language="text")
+
+                    finally:
+                        # 生成完了後にサーバー内の一時ファイルを完全削除
+                        for tmp_path in temp_files:
+                            if os.path.exists(tmp_path):
+                                try:
+                                    os.remove(tmp_path)
+                                except Exception:
+                                    pass
 
 else:
     st.info("👈 左側のサイドバーに Gemini API Key を入力してください。")
