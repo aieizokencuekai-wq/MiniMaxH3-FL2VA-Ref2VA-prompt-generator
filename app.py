@@ -205,11 +205,14 @@ non_diegetic_music:
                 with st.spinner("Ref2VA公式規格（6セクション構造）へ変換中..."):
                     prompt_inputs = []
                     if img_files:
-                        for f in img_files: prompt_inputs.append(Image.open(f))
+                        for f in img_files: 
+                            prompt_inputs.append(Image.open(f))
                     if vid_files:
-                        for f in vid_files: prompt_inputs.append(genai.upload_file(f))
+                        for f in vid_files: 
+                            prompt_inputs.append(genai.upload_file(f, mime_type=f.type))
                     if aud_files:
-                        for f in aud_files: prompt_inputs.append(genai.upload_file(f))
+                        for f in aud_files: 
+                            prompt_inputs.append(genai.upload_file(f, mime_type=f.type))
 
                     formatted_instructions = "\n".join(file_instructions)
                     system_prompt = f"""
