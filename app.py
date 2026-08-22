@@ -1,7 +1,7 @@
 import os
 import tempfile
 from PIL import Image
-import google.generativeai as genai
+from google import genai
 import streamlit as st
 
 # --------------------------------------------------------------------------------
@@ -71,8 +71,8 @@ st.sidebar.markdown(
 # 5. メイン処理部
 # --------------------------------------------------------------------------------
 if api_key:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-3-flash-preview")
+    # 新SDKのクライアント初期化
+    client = genai.Client(api_key=api_key)
 
     # ============================================================================
     # A. FL2VA モードの処理 (T2V / I2V)
@@ -150,7 +150,10 @@ non_diegetic_music:
 {user_summary}
 """
                     prompt_inputs.insert(0, system_prompt)
-                    response = model.generate_content(prompt_inputs)
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt_inputs
+                    )
 
                     st.markdown("---")
                     st.subheader("✨ 生成結果")
@@ -315,7 +318,7 @@ non_diegetic_music:
                             for f in img_files:
                                 prompt_inputs.append(Image.open(f))
 
-                        # 2. 動画の追加（一時ファイル保存経由）
+                        # 2. 動画の追加（新SDK client.files.upload 経由）
                         if vid_files:
                             for f in vid_files:
                                 ext = os.path.splitext(f.name)[1] or ".mp4"
@@ -325,11 +328,13 @@ non_diegetic_music:
                                     tmp.write(f.read())
                                     tmp_path = tmp.name
                                 temp_files.append(tmp_path)
-                                prompt_inputs.append(
-                                    genai.upload_file(tmp_path, mime_type=f.type)
+                                uploaded_file = client.files.upload(
+                                    file=tmp_path,
+                                    config={"mime_type": f.type}
                                 )
+                                prompt_inputs.append(uploaded_file)
 
-                        # 3. 音声の追加（一時ファイル保存経由）
+                        # 3. 音声の追加（新SDK client.files.upload 経由）
                         if aud_files:
                             for f in aud_files:
                                 ext = os.path.splitext(f.name)[1] or ".mp3"
@@ -339,9 +344,11 @@ non_diegetic_music:
                                     tmp.write(f.read())
                                     tmp_path = tmp.name
                                 temp_files.append(tmp_path)
-                                prompt_inputs.append(
-                                    genai.upload_file(tmp_path, mime_type=f.type)
+                                uploaded_file = client.files.upload(
+                                    file=tmp_path,
+                                    config={"mime_type": f.type}
                                 )
+                                prompt_inputs.append(uploaded_file)
 
                         formatted_instructions = "\n".join(file_instructions)
                         system_prompt = f"""
@@ -379,7 +386,10 @@ non_diegetic_music:
 {user_summary}
 """
                         prompt_inputs.insert(0, system_prompt)
-                        response = model.generate_content(prompt_inputs)
+                        response = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=prompt_inputs
+                        )
 
                         st.markdown("---")
                         st.subheader("✨ 生成結果")
@@ -402,8 +412,11 @@ non_diegetic_music:
                         else:
                             st.code(response.text, language="text")
 
+                    except Exception as e:
+                        st.error(f"エラーが発生しました: {e}")
+
                     finally:
-                        # 生成完了後にサーバー内の一時ファイルを完全削除
+                        # サーバー内の一時ファイルを削除
                         for tmp_path in temp_files:
                             if os.path.exists(tmp_path):
                                 try:
