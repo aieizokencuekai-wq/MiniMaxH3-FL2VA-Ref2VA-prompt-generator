@@ -1,2 +1,2 @@
 # MiniMaxH3-Ref2VA-prompt-generator
-MMH3のRef2VAモデル用のプロンプトフォーマットに整えます。
+MMH3のFL2VAまたはRef2VAモデル用のプロンプトフォーマットに整えます。
