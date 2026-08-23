@@ -469,10 +469,18 @@ non_diegetic_music:
                                 uploaded_files[idx] = wait_for_file_active(client, u_file)
 
                             formatted_instructions = "\n".join(file_instructions)
+                            
+                            # 【修正箇所】システムプロンプトに禁止事項と具体例（Few-Shot）を追加
                             system_prompt = f"""
 あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専門プロンプト生成AIです。
 以下の素材指示と動画概要、および【公式プロンプトルール】に完全準拠して、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
 推測やルールにない独自のフォーマットは使用しないでください。
+
+【最重要ルール（ハルシネーション・構造破壊の防止）】
+1. 視覚的な被写体（人物、背景、環境など）やアクション主体は、必ず `<Subject N>` として定義してください。
+2. `<Picture N>` や `<Video N>` は単なる「情報源」です。これらを直接キャラクターとして行動させたり、直接背景として配置したりしないでください。
+3. 複数の素材から要素を合成する場合（例：外見は画像、動きは動画）、1つの `<Subject N>` の定義内で情報源を組み合わせて記述してください。
+4. 動画や音声ファイルから音声を利用する場合は、必ず `<Audio N>` として抽出し、該当する音声セクションで定義・参照してください。
 
 【公式プロンプトルール (base-en.md)】
 {base_rules}
@@ -489,16 +497,21 @@ non_diegetic_music:
 【出力フォーマット】
 ===ENGLISH_PROMPT===
 subject_definitions:
-<ルールに従い記述>
+<Subject 1> is the [対象の概要], whose appearance comes from <Picture 1> and whose motion comes from <Video 1>.
+<Subject 2> is the [背景などの概要] from <Picture 1>.
+<Audio 1> is the [音声の役割] from <Video 1>.
+(※上記は記述例です。実際の指示に合わせて適切にSubject/Audioを定義してください)
 
 summary:
 <ルールに従い記述>
 
 retention_analysis:
-<ルールに従い記述>
+<Subject 1> (appears in ...): fully_preserved - ...
+<Subject 2> (appears in ...): fully_preserved - ...
+<Audio 1>: reference - ...
 
 detailed_description:
-<ルールに従い記述>
+<ルールに従い記述。ここでは必ず <Subject N> と <Audio N> を使用し、<Picture N> や <Video N> を直接アクションさせないこと>
 
 overall_soundscape:
 <ルールに従い記述>
