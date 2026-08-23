@@ -32,6 +32,15 @@ FILE_PROCESSING_POLL_INTERVAL_SEC = 2
 # --------------------------------------------------------------------------------
 # ヘルパー関数
 # --------------------------------------------------------------------------------
+def load_rule_file(filename):
+    """公式ルールが記述されたMarkdownファイルを読み込む"""
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            return f.read()
+    else:
+        st.error(f"致命的なエラー: 必須ルールファイル '{filename}' がディレクトリに見つかりません。プログラムを停止します。")
+        st.stop()
+
 def get_mime_type(uploaded_file):
     """Streamlitのfile.typeがNoneの場合、拡張子から推測してフォールバックする"""
     if uploaded_file.type:
@@ -79,7 +88,7 @@ def wait_for_file_active(client, gfile, timeout_sec=FILE_PROCESSING_TIMEOUT_SEC)
     return current
 
 
-def call_gemini(client, prompt_inputs, model="gemini-3.5-flash-lite"):
+def call_gemini(client, prompt_inputs, model="gemini-2.5-flash"):
     """Gemini APIを呼び出し、エラー時は分かりやすいメッセージにして再送出する"""
     try:
         response = client.models.generate_content(
@@ -216,6 +225,9 @@ if api_key:
             if not first_frame and not last_frame and not user_summary.strip():
                 st.warning("テキスト概要、または画像を入力してください。")
             else:
+                # 必須ルールの読み込み
+                base_rules = load_rule_file("base-en.md")
+
                 with st.spinner("FL2VA公式規格（3ブロック構造）へ変換中..."):
                     try:
                         prompt_inputs = []
@@ -240,31 +252,34 @@ if api_key:
 
                         system_prompt = f"""
 あなたはMiniMax H3 FL2VA (First-and-Last-Frame Mode) 専門プロンプト生成AIです。
-提供されたキーフレーム画像情報と指示から、FL2VA公式規格(3ブロック構造)の英語プロンプトと和訳を出力してください。
+提供されたキーフレーム画像情報と指示、および以下の【公式プロンプトルール】に完全準拠して、FL2VA公式規格(3ブロック構造)の英語プロンプトと和訳を出力してください。
+推測やルールにない独自のフォーマットは使用しないでください。
+
+【公式プロンプトルール (base-en.md)】
+{base_rules}
 
 【フレーム情報】
 {frame_info if frame_info else "テキストのみのT2V生成"}
 
-【FL2VA公式必須フォーマット】
+【ユーザーの動画指示】
+{user_summary}
+
+【出力フォーマット】
 以下の3つのブロックのみを出力してください（subject_definitions や retention_analysis は絶対に使用しないでください）。
 
 ===ENGLISH_PROMPT===
 integrated_multimodal_description:
-<T2Vの場合は画像の言及不要。画像がある場合は「<Picture 1> is the actual first frame...」等を記述>
-[Shot 1] <被写体の動き、アクション、カメラワークを詳細に記述。セリフがある場合は <d>[Japanese] 「...」</d> タグを使用>
+<ルールに従い記述>
 
 overall_soundscape:
-<動きに伴う物理音、効果音(SE)、環境音>
+<ルールに従い記述>
 
 non_diegetic_music:
-<BGM指定>
+<ルールに従い記述>
 
 ===JAPANESE_TRANSLATION===
 【日本語訳・解説】
 <セクションごとの和訳>
-
-【ユーザーの動画指示】
-{user_summary}
 """
                         prompt_inputs.insert(0, system_prompt)
                         response = call_gemini(client, prompt_inputs)
@@ -405,6 +420,10 @@ non_diegetic_music:
                 if total_files == 0 and not user_summary.strip():
                     st.warning("参照ファイル、または動画概要のどちらかを入力してください。")
                 else:
+                    # 必須ルールの読み込み
+                    base_rules = load_rule_file("base-en.md")
+                    ref_rules = load_rule_file("ref-en.md")
+
                     with st.spinner("Ref2VA公式規格（6セクション構造）へ変換中..."):
                         prompt_inputs = []
                         temp_files = []
@@ -444,37 +463,44 @@ non_diegetic_music:
                             formatted_instructions = "\n".join(file_instructions)
                             system_prompt = f"""
 あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専門プロンプト生成AIです。
-以下の素材指示と動画概要から、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
+以下の素材指示と動画概要、および【公式プロンプトルール】に完全準拠して、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
+推測やルールにない独自のフォーマットは使用しないでください。
+
+【公式プロンプトルール (base-en.md)】
+{base_rules}
+
+【Ref2VA 専用追加ルール (ref-en.md)】
+{ref_rules}
 
 【素材指示】
 {formatted_instructions}
 
-【フォーマット】
+【ユーザーの動画概要】
+{user_summary}
+
+【出力フォーマット】
 ===ENGLISH_PROMPT===
 subject_definitions:
-<定義文>
+<ルールに従い記述>
 
 summary:
-<全体概要>
+<ルールに従い記述>
 
 retention_analysis:
-<保持分析 (fully_preserved等)>
+<ルールに従い記述>
 
 detailed_description:
-<詳細・カメラワーク・セリフは <d>[Japanese] 「...」</d> タグ>
+<ルールに従い記述>
 
 overall_soundscape:
-<効果音・環境音>
+<ルールに従い記述>
 
 non_diegetic_music:
-<BGM指定>
+<ルールに従い記述>
 
 ===JAPANESE_TRANSLATION===
 【日本語訳・解説】
 <セクションごとの和訳>
-
-【ユーザーの動画概要】
-{user_summary}
 """
                             prompt_inputs.insert(0, system_prompt)
                             response = call_gemini(client, prompt_inputs)
