@@ -383,7 +383,7 @@ non_diegetic_music:
                         with c1:
                             roles = st.multiselect(
                                 f"<Video {i}> の役割",
-                                ["ダンス・アクション", "カメラワーク", "全体構造"],
+                                ["ダンス・アクション", "カメラワーク", "全体構造", "音楽", "音声"],
                                 default=[],
                                 key=f"r_vid_{i}",
                             )
