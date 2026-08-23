@@ -470,17 +470,18 @@ non_diegetic_music:
 
                             formatted_instructions = "\n".join(file_instructions)
                             
-                            # 【修正箇所】システムプロンプトに禁止事項と具体例（Few-Shot）を追加
+                            # 【修正箇所】システムプロンプトにおける厳密な禁止事項と、明確なサンプル構造の追加
                             system_prompt = f"""
 あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専門プロンプト生成AIです。
 以下の素材指示と動画概要、および【公式プロンプトルール】に完全準拠して、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
 推測やルールにない独自のフォーマットは使用しないでください。
 
 【最重要ルール（ハルシネーション・構造破壊の防止）】
-1. 視覚的な被写体（人物、背景、環境など）やアクション主体は、必ず `<Subject N>` として定義してください。
-2. `<Picture N>` や `<Video N>` は単なる「情報源」です。これらを直接キャラクターとして行動させたり、直接背景として配置したりしないでください。
-3. 複数の素材から要素を合成する場合（例：外見は画像、動きは動画）、1つの `<Subject N>` の定義内で情報源を組み合わせて記述してください。
-4. 動画や音声ファイルから音声を利用する場合は、必ず `<Audio N>` として抽出し、該当する音声セクションで定義・参照してください。
+1. 視覚的な被写体（人物、背景、環境など）やアクション主体は、必ず `<Subject N>` として抽出・定義してください。
+2. `<Video N>` や `<Picture N>` というラベルは、`subject_definitions` において素材の抽出元を定義する時に【のみ】使用し、以後のセクション（`summary`, `retention_analysis`, `detailed_description` 等）には【絶対に記述しないでください】。
+3. 例外として、画像が開始フレームのアンカー（keyframe completion等）となる場合のみ、`<Picture N>` を独立して定義し、`detailed_description` の冒頭で参照宣言を行ってください。
+4. 複数の素材から要素を合成する場合（例：外見は画像、動きは動画）、1つの `<Subject N>` の定義内で情報源を組み合わせて記述してください。動画の動きは、必ず定義済みの `<Subject N>` を用いて描写し、動画ソースを直接アクションさせないでください。
+5. 音声を利用する場合は、必ず `<Audio N>` として抽出し、該当する音声セクションで定義・参照してください。事前に定義されていない新しい参照ラベルを `summary` 等で導入することは禁止です。
 
 【公式プロンプトルール (base-en.md)】
 {base_rules}
@@ -497,21 +498,25 @@ non_diegetic_music:
 【出力フォーマット】
 ===ENGLISH_PROMPT===
 subject_definitions:
-<Subject 1> is the [対象の概要], whose appearance comes from <Picture 1> and whose motion comes from <Video 1>.
-<Subject 2> is the [背景などの概要] from <Picture 1>.
+<Picture 1> is the first frame of [Shot 1], showing the initial state. (※開始アンカーとして使う場合のみ独立定義)
+<Subject 1> is the [背景などの概要] extracted from <Picture 1>.
+<Subject 2> is the [対象の概要], whose appearance comes from <Picture 1> and whose motion comes from <Video 1>.
 <Audio 1> is the [音声の役割] from <Video 1>.
 (※上記は記述例です。実際の指示に合わせて適切にSubject/Audioを定義してください)
 
 summary:
-<ルールに従い記述>
+[keyframe completion + reference generation + audio reuse] (※複数のタスクタイプを組み合わせる例。実際の指示に合わせて変更)
+<ルールに従い記述。ここでは必ず <Subject N> と <Audio N> を使用し、<Video N>は絶対に使用しないこと>
 
 retention_analysis:
+<Picture 1> ([Shot 1] first frame): fully_preserved - ...
 <Subject 1> (appears in ...): fully_preserved - ...
 <Subject 2> (appears in ...): fully_preserved - ...
-<Audio 1>: reference - ...
+<Audio 1>: fully_copy - ...
 
 detailed_description:
-<ルールに従い記述。ここでは必ず <Subject N> と <Audio N> を使用し、<Picture N> や <Video N> を直接アクションさせないこと>
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced. (※画像を開始アンカーにする場合の必須構文)
+<ルールに従い描写。必ず <Subject N> と <Audio N> だけを使用し、<Picture N> や <Video N> のラベルをアクションや背景の直接指定に使わないこと>
 
 overall_soundscape:
 <ルールに従い記述>
