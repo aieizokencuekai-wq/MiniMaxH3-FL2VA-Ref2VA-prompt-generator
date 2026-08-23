@@ -88,7 +88,7 @@ def wait_for_file_active(client, gfile, timeout_sec=FILE_PROCESSING_TIMEOUT_SEC)
     return current
 
 
-def call_gemini(client, prompt_inputs, model="gemini-2.5-flash"):
+def call_gemini(client, prompt_inputs, model="gemini-3.5-flash-lite"):
     """Gemini APIを呼び出し、エラー時は分かりやすいメッセージにして再送出する"""
     try:
         response = client.models.generate_content(
