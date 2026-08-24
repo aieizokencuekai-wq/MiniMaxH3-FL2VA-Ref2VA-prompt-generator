@@ -104,11 +104,14 @@ def build_user_content(prompt_inputs):
     return types.Content(role="user", parts=user_parts)
 
 def call_gemini(client, contents, model="gemini-3.5-flash-lite"):
-    """Gemini APIを呼び出し、レスポンスを返す"""
+    """Gemini APIを呼び出し、レスポンスを返す（temperatureを下げて厳格化）"""
     try:
         response = client.models.generate_content(
             model=model,
             contents=contents,
+            config=types.GenerateContentConfig(
+                temperature=0.2,  # 創造性を抑え、ルールへの忠実度を最大化
+            )
         )
         if not getattr(response, "text", None):
             raise ValueError("APIから空の応答が返されました。入力内容やAPIキーを確認してください。")
