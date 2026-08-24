@@ -473,7 +473,7 @@ non_diegetic_music:
 
                             formatted_instructions = "\n".join(file_instructions)
                             
-                            # 【修正箇所】システムプロンプトの完全な再構築
+                            # 【修正箇所】システムプロンプトの完全な再構築（Few-Shot例を統合）
                             system_prompt = f"""
 あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専用のプロンプト生成AIです。
 以下の素材指示と動画概要、および【公式プロンプトルール】に完全準拠し、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
@@ -481,22 +481,13 @@ non_diegetic_music:
 
 【絶対遵守のコア原則】
 1. 外見描写の徹底排除（No Visual Descriptions）
-参照素材（画像・動画）の見た目（服装、髪型、装飾品、背景のディテールなど）をプロンプト内で言語化することを固く禁じます。視覚的特徴の解析はMiniMaxのビジョンエンコーダーが自動で行います。テキストでの過剰な描写はエンコーダーと競合し生成を破壊します。対象を指す際は「the character」「the background environment」といった最短の識別子のみを使用してください。
-
+参照素材（画像・動画）の見た目（服装、髪型、装飾品、背景のディテールなど）をプロンプト内で過剰に言語化することを固く禁じます。視覚的特徴の解析はMiniMaxのビジョンエンコーダーが自動で行います。過剰な描写はエンコーダーと競合し生成を破壊します。
 2. 変数化と反復説明の禁止（DRY Principle）
 `subject_definitions` で定義した `<Subject N>` や `<Audio N>` はプログラムにおける「変数」です。以降のセクション（`summary`, `retention_analysis`, `detailed_description` 等）でそれらを呼び出す際は、必ずラベル（例: `<Subject 1>`) のみを使用し、それが何であるかの再説明・再描写を一切行わないでください。
-
 3. 構成と演出への完全特化（Focus on Composition & Timing）
-あなたの推論リソースはすべて、ユーザーが指定した「動画の構成」をタイムラインとして正確に構築することに注力してください。
-- 空間配置（誰がどこにいるか）
-- 時間変化（何秒の時点でどのアクションが起きるか）
-- 相互作用（被写体同士の接触や反応）
-- セリフや音声のタイミング
-- <Subject N>と(Sn)の完全一致
-
+あなたの推論リソースはすべて、ユーザーが指定した「動画の構成」をタイムラインとして正確に構築することに注力してください（空間配置、時間変化、相互作用、セリフのタイミング）。
 4. ソースラベルの直接使用禁止
-`<Picture N>` や `<Video N>` は、`subject_definitions` において情報源を定義するため【のみ】に使用してください。`detailed_description` 等で直接アクションさせたり背景として配置したりすることは厳禁です。
-例外：画像を開始フレームに固定する場合のみ、`detailed_description` の先頭で「For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.」の構文を使用できます。
+`<Picture N>` や `<Video N>` は、`subject_definitions` において情報源を定義するため【のみ】に使用してください。`detailed_description` 等で直接アクションさせたり背景として配置することは厳禁です。例外：画像を開始フレームに固定する場合のみ、`detailed_description` の先頭で「For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.」の構文を使用できます。
 
 【公式プロンプトルール (base-en.md)】
 {base_rules}
@@ -510,39 +501,42 @@ non_diegetic_music:
 【ユーザーの動画概要】
 {user_summary}
 
-【出力フォーマット】
-以下の構成に完全に一致させて出力してください。
+【最適化されたプロンプトの出力例（Few-Shot Example）】
+※ユーザーの指示に基づいてプロンプトを構築する際、以下の例の構造・文体・抽象度を【完全に模倣】してください。
 
 ===ENGLISH_PROMPT===
 subject_definitions:
-<Picture 1> is the first frame of [Shot 1]. (※開始フレーム固定用・必要な場合のみ)
-<Subject 1> is the background environment extracted from <Picture 1>.
-<Subject 2> is the character, whose appearance comes from <Picture 1> and whose motion comes from <Video 1>.
-<Audio 1> is the vocal track from <Video 1>.
-(※実際の指示に合わせて要素を定義してください)
+<Subject 1> is the coffee-shop environment in <Picture 1>, featuring an exposed brick wall, an orange tufted sofa with patterned pillows, a neon sign, and a wooden coffee table.
+<Subject 2> is the fluffy white Samoyed in <Picture 2>, <Picture 3>, and <Picture 4>, with thick white fur, pointed ears, a dark nose, and a curved tail.
+<Subject 3> is the young blonde woman in <Video 1>, with long blonde hair and a light-pink button-down shirt with rolled-up sleeves.
+<Subject 4> is the young man in <Video 2>, with short wavy brown hair and a dark-grey hoodie with drawstrings.
+<Audio 1> is the voice-timbre reference for <Subject 3> (S1), containing a spoken English vocal layer.
 
 summary:
-[keyframe completion + reference generation + audio reuse] The target video features <Subject 2> performing actions within <Subject 1>. <Audio 1> is used as the soundtrack.
+[reference generation + audio reference] The target video shows <Subject 3> eating a cookie in <Subject 1>. <Subject 4> enters with <Subject 2>, which lunges toward the cookie. The three-shot exchange uses <Audio 1> as the voice-timbre reference for <Subject 3> and ends with a canned audience laugh.
 
 retention_analysis:
-<Picture 1> ([Shot 1] first frame): fully_preserved - the initial state is maintained.
-<Subject 1> (appears in [Shot 1]): fully_preserved - the environment is retained.
-<Subject 2> (appears in [Shot 1]): fully_preserved - the character is retained.
-<Audio 1>: fully_copy - the audio is reused.
+<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the exposed brick wall, orange tufted sofa, patterned pillows, neon sign, and wooden coffee table are retained.
+<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - the Samoyed's thick white fur, pointed ears, dark nose, and curved tail are retained.
+<Subject 3> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the blonde woman's identity, long hair, and light-pink shirt are retained.
+<Subject 4> (appears in [Shot 1], [Shot 2]): fully_preserved - the young man's short wavy brown hair and dark-grey hoodie are retained.
+<Audio 1>: reference - its vocal timbre guides the dialogue delivery of <Subject 3> without copying the original signal.
 
 detailed_description:
-For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced. (※画像を開始アンカーにする場合の必須構文)
-[Shot 1] A cinematic shot. <Subject 2> stands in <Subject 1>. Synchronized with <Audio 1>, <Subject 2> begins dancing. The camera remains static.
+The target video uses a realistic multi-camera sitcom style with warm indoor lighting.
+[Shot 1] A medium shot establishes <Subject 1>, the coffee shop with its exposed brick wall, orange tufted sofa, patterned pillows, neon sign, and wooden coffee table. <Subject 3> (S1), the young woman with long blonde hair and a light-pink button-down shirt with rolled-up sleeves, sits on the sofa holding a chocolate-chip cookie. From the left, <Subject 4>, the young man with short wavy brown hair and a dark-grey hoodie with drawstrings, enters holding the leash of <Subject 2>, the thick-furred white Samoyed with pointed ears, a dark nose, and a curved tail. The dog lunges toward the cookie and pulls the leash taut. <Subject 3> (S1) jerks her hand back and, using the clear youthful voice timbre referenced from <Audio 1>, exclaims with light annoyance, <d>[English] Hey! Watch your dog!</d> She closes her lips and guards the cookie while <Subject 4> pulls the dog back.
+[Shot 2] At 00:03.000, the shot cuts to a close-up of <Subject 4> (S2), the young man in the dark-grey hoodie from Shot 1, sitting beside <Subject 3> on the sofa and holding <Subject 2> securely in his arms. <Subject 4> (S2) says in a casual young male voice with a playful tone and an easy conversational pace, <d>[English] He just likes cookies more than me.</d> He closes his mouth into an apologetic smile and strokes the dog's thick white fur.
+[Shot 3] At 00:05.000, the shot cuts to a close-up of <Subject 3> (S1), the blonde woman in the light-pink shirt from Shot 1. Her annoyance softens as she looks toward the Samoyed. <Subject 3> (S1) replies in the same clear youthful voice referenced from <Audio 1> with an amused cadence, <d>[English] Well, he has good taste at least.</d> She smiles and raises the cookie in a small toast-like gesture. A classic canned audience laugh begins immediately after the line and continues through the final frame.
 
 overall_soundscape:
-Ambient sounds suitable for <Subject 1>.
+Soft indoor coffee-shop room tone continues throughout the scene.
 
 non_diegetic_music:
-<Audio 1> serves as the background track.
+N/A
 
 ===JAPANESE_TRANSLATION===
 【日本語訳・解説】
-<セクションごとの和訳>
+<出力した英語プロンプトのセクションごとの和訳>
 """
                             prompt_inputs.append(system_prompt)
                             user_content = build_user_content(prompt_inputs)
