@@ -470,18 +470,30 @@ non_diegetic_music:
 
                             formatted_instructions = "\n".join(file_instructions)
                             
-                            # 【修正箇所】システムプロンプトにおける厳密な禁止事項と、明確なサンプル構造の追加
+                            # 【修正箇所】システムプロンプトの完全な再構築
                             system_prompt = f"""
-あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専門プロンプト生成AIです。
-以下の素材指示と動画概要、および【公式プロンプトルール】に完全準拠して、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
-推測やルールにない独自のフォーマットは使用しないでください。
+あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専用のプロンプト生成AIです。
+以下の素材指示と動画概要、および【公式プロンプトルール】に完全準拠し、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
+ルールにない独自のフォーマットや推測による補完は絶対に行わないでください。
 
-【最重要ルール（ハルシネーション・構造破壊の防止）】
-1. 視覚的な被写体（人物、背景、環境など）やアクション主体は、必ず `<Subject N>` として抽出・定義してください。
-2. `<Video N>` や `<Picture N>` というラベルは、`subject_definitions` において素材の抽出元を定義する時に【のみ】使用し、以後のセクション（`summary`, `retention_analysis`, `detailed_description` 等）には【絶対に記述しないでください】。
-3. 例外として、画像が開始フレームのアンカー（keyframe completion等）となる場合のみ、`<Picture N>` を独立して定義し、`detailed_description` の冒頭で参照宣言を行ってください。
-4. 複数の素材から要素を合成する場合（例：外見は画像、動きは動画）、1つの `<Subject N>` の定義内で情報源を組み合わせて記述してください。動画の動きは、必ず定義済みの `<Subject N>` を用いて描写し、動画ソースを直接アクションさせないでください。
-5. 音声を利用する場合は、必ず `<Audio N>` として抽出し、該当する音声セクションで定義・参照してください。事前に定義されていない新しい参照ラベルを `summary` 等で導入することは禁止です。
+【絶対遵守のコア原則】
+1. 外見描写の徹底排除（No Visual Descriptions）
+参照素材（画像・動画）の見た目（服装、髪型、装飾品、背景のディテールなど）をプロンプト内で言語化することを固く禁じます。視覚的特徴の解析はMiniMaxのビジョンエンコーダーが自動で行います。テキストでの過剰な描写はエンコーダーと競合し生成を破壊します。対象を指す際は「the character」「the background environment」といった最短の識別子のみを使用してください。
+
+2. 変数化と反復説明の禁止（DRY Principle）
+`subject_definitions` で定義した `<Subject N>` や `<Audio N>` はプログラムにおける「変数」です。以降のセクション（`summary`, `retention_analysis`, `detailed_description` 等）でそれらを呼び出す際は、必ずラベル（例: `<Subject 1>`) のみを使用し、それが何であるかの再説明・再描写を一切行わないでください。
+
+3. 構成と演出への完全特化（Focus on Composition & Timing）
+あなたの推論リソースはすべて、ユーザーが指定した「動画の構成」をタイムラインとして正確に構築することに注力してください。
+- 空間配置（誰がどこにいるか）
+- 時間変化（何秒の時点でどのアクションが起きるか）
+- 相互作用（被写体同士の接触や反応）
+- セリフや音声のタイミング
+- <Subject N>と(Sn)の完全一致
+
+4. ソースラベルの直接使用禁止
+`<Picture N>` や `<Video N>` は、`subject_definitions` において情報源を定義するため【のみ】に使用してください。`detailed_description` 等で直接アクションさせたり背景として配置したりすることは厳禁です。
+例外：画像を開始フレームに固定する場合のみ、`detailed_description` の先頭で「For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.」の構文を使用できます。
 
 【公式プロンプトルール (base-en.md)】
 {base_rules}
@@ -496,33 +508,34 @@ non_diegetic_music:
 {user_summary}
 
 【出力フォーマット】
+以下の構成に完全に一致させて出力してください。
+
 ===ENGLISH_PROMPT===
 subject_definitions:
-<Picture 1> is the first frame of [Shot 1], showing the initial state. (※開始アンカーとして使う場合のみ独立定義)
-<Subject 1> is the [背景などの概要] extracted from <Picture 1>.
-<Subject 2> is the [対象の概要], whose appearance comes from <Picture 1> and whose motion comes from <Video 1>.
-<Audio 1> is the [音声の役割] from <Video 1>.
-(※上記は記述例です。実際の指示に合わせて適切にSubject/Audioを定義してください)
+<Picture 1> is the first frame of [Shot 1]. (※開始フレーム固定用・必要な場合のみ)
+<Subject 1> is the background environment extracted from <Picture 1>.
+<Subject 2> is the character, whose appearance comes from <Picture 1> and whose motion comes from <Video 1>.
+<Audio 1> is the vocal track from <Video 1>.
+(※実際の指示に合わせて要素を定義してください)
 
 summary:
-[keyframe completion + reference generation + audio reuse] (※複数のタスクタイプを組み合わせる例。実際の指示に合わせて変更)
-<ルールに従い記述。ここでは必ず <Subject N> と <Audio N> を使用し、<Video N>は絶対に使用しないこと>
+[keyframe completion + reference generation + audio reuse] The target video features <Subject 2> performing actions within <Subject 1>. <Audio 1> is used as the soundtrack.
 
 retention_analysis:
-<Picture 1> ([Shot 1] first frame): fully_preserved - ...
-<Subject 1> (appears in ...): fully_preserved - ...
-<Subject 2> (appears in ...): fully_preserved - ...
-<Audio 1>: fully_copy - ...
+<Picture 1> ([Shot 1] first frame): fully_preserved - the initial state is maintained.
+<Subject 1> (appears in [Shot 1]): fully_preserved - the environment is retained.
+<Subject 2> (appears in [Shot 1]): fully_preserved - the character is retained.
+<Audio 1>: fully_copy - the audio is reused.
 
 detailed_description:
 For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced. (※画像を開始アンカーにする場合の必須構文)
-<ルールに従い描写。必ず <Subject N> と <Audio N> だけを使用し、<Picture N> や <Video N> のラベルをアクションや背景の直接指定に使わないこと>
+[Shot 1] A cinematic shot. <Subject 2> stands in <Subject 1>. Synchronized with <Audio 1>, <Subject 2> begins dancing. The camera remains static.
 
 overall_soundscape:
-<ルールに従い記述>
+Ambient sounds suitable for <Subject 1>.
 
 non_diegetic_music:
-<ルールに従い記述>
+<Audio 1> serves as the background track.
 
 ===JAPANESE_TRANSLATION===
 【日本語訳・解説】
