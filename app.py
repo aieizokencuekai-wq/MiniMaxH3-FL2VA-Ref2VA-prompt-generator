@@ -104,13 +104,13 @@ def build_user_content(prompt_inputs):
     return types.Content(role="user", parts=user_parts)
 
 def call_gemini(client, contents, model="gemini-3.5-flash-lite"):
-    """Gemini APIを呼び出し、レスポンスを返す（temperatureを下げて厳格化）"""
+    """Gemini APIを呼び出し、レスポンスを返す（temperature=0でハルシネーションと描写を完全封鎖）"""
     try:
         response = client.models.generate_content(
             model=model,
             contents=contents,
             config=types.GenerateContentConfig(
-                temperature=0.2,  # 創造性を抑え、ルールへの忠実度を最大化
+                temperature=0.0,  # 決定論的出力にし、ルール違反や画像描写の勝手な追加を完全防止
             )
         )
         if not getattr(response, "text", None):
@@ -118,7 +118,7 @@ def call_gemini(client, contents, model="gemini-3.5-flash-lite"):
         return response
     except Exception as e:
         raise RuntimeError(f"Gemini API呼び出し中にエラーが発生しました: {e}") from e
-
+        
 def render_result(response_text):
     """生成結果を英語プロンプト／日本語訳のタブで表示する"""
     st.markdown("---")
