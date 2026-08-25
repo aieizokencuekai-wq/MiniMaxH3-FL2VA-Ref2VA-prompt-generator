@@ -104,13 +104,13 @@ def build_user_content(prompt_inputs):
     return types.Content(role="user", parts=user_parts)
 
 def call_gemini(client, contents, model="gemini-3.5-flash-lite"):
-    """Gemini APIを呼び出し、レスポンスを返す（temperature=0でハルシネーションと描写を完全封鎖）"""
+    """Gemini APIを呼び出し、レスポンスを返す（temperature=0.0でハルシネーションと描写を完全封鎖）"""
     try:
         response = client.models.generate_content(
             model=model,
             contents=contents,
             config=types.GenerateContentConfig(
-                temperature=0.0,  # 決定論的出力にし、ルール違反や画像描写の勝手な追加を完全防止
+                temperature=0.0,  # 決定論的出力にし、ルール違反や画像描写の勝手な追加・セリフの捏造を完全防止
             )
         )
         if not getattr(response, "text", None):
@@ -118,7 +118,7 @@ def call_gemini(client, contents, model="gemini-3.5-flash-lite"):
         return response
     except Exception as e:
         raise RuntimeError(f"Gemini API呼び出し中にエラーが発生しました: {e}") from e
-        
+
 def render_result(response_text):
     """生成結果を英語プロンプト／日本語訳のタブで表示する"""
     st.markdown("---")
@@ -143,6 +143,49 @@ def cleanup_temp_files(temp_files):
                 os.remove(tmp_path)
             except Exception:
                 pass
+
+# --------------------------------------------------------------------------------
+# オプションUI生成ヘルパー（スタイル選択とテキスト演出）
+# --------------------------------------------------------------------------------
+def render_style_and_text_options():
+    st.markdown("#### 🎨 演出・スタイル設定（オプション）")
+    style_options = [
+        "指定なし",
+        "Cinematic (映画風・重厚感)",
+        "Realistic Live-Action (リアルな実写風)",
+        "Music Video (ミュージックビデオ風)",
+        "2D Animation (2Dアニメ風)",
+        "3D CG (3Dアニメ風)",
+        "Cyberpunk / Sci-Fi (サイバーパンク・SF風)",
+        "Vintage / Retro Film (ヴィンテージ・レトロフィルム風)",
+        "Minimalist / Commercial (ミニマリスト・商用風)"
+    ]
+    video_style = st.selectbox("映像のスタイル", style_options)
+
+    use_text = st.checkbox("🔤 画面内テキスト・歌詞アニメーションを追加する")
+    overlay_text = ""
+    text_style = ""
+    if use_text:
+        overlay_text = st.text_input("表示するテキスト / 歌詞 (英語または日本語)", placeholder="例: Color Meets Sound")
+        text_style = st.selectbox(
+            "デザイン・動きのスタイル",
+            [
+                "フェードイン / スライドイン（滑らかな登場）",
+                "キネティック・タイポグラフィ（リズムに合わせた文字アニメーション）",
+                "ネオンサイン風 / サイバー発光テキスト",
+                "ミニマルなクリーン・サブタイトル"
+            ]
+        )
+    return video_style, use_text, overlay_text, text_style
+
+def build_enhanced_summary(base_summary, video_style, use_text, overlay_text, text_style):
+    enhanced = f"【ユーザーの動画概要】\n{base_summary}\n"
+    if video_style != "指定なし":
+        enhanced += f"\n【指定映像スタイル】\n全体を「{video_style}」のトーンと演出で統一してください。\n"
+    if use_text and overlay_text.strip():
+        enhanced += f"\n【画面内テキスト・タイポグラフィ指定】\nテキスト内容: {overlay_text.strip()}\n演出スタイル: {text_style}\n"
+        enhanced += "※指示: 上記テキストを動画内に表示されるインフレーム・タイポグラフィとして詳細描写に組み込んでください。公式ルールに従い、画面内テキストは二重引用符（\"\"）で囲むか、セリフ/歌詞の場合は <d></d> タグを使用してください。\n"
+    return enhanced
 
 # --------------------------------------------------------------------------------
 # 2. モード選択（FL2VA ➔ Ref2VAの順）
@@ -181,10 +224,11 @@ with st.expander("📖 アプリの使い方と入力例（初めての方はこ
 ### 💡 Ref2VAモードの使い方
 画像（最大9枚）・動画（最大3個）・音声（最大3個）を参照素材として指定し、キャラクターの顔、声質、BGMなどを固定・合成するプロンプトを生成します。
 
-- **記入例（概要欄）**：
-  > 「`<Picture 1>`の女の子が、`<Picture 2>`のカフェで`<Audio 1>`の声質で『こんにちは！』と挨拶する。」
+- **💡 重要（動画音声ピン `ref_video_audio_n` について）**：
+  ComfyUIのMiniMax H3ノードには、動画ファイルに内包される音楽や音声を抽出して処理するための **`ref_video_audio_n`** ピンが用意されています。動画の音声をそのまま活かす場合は、動画ファイルとあわせて音声トラックも正しく結線してください。
 
-⚠️ 音声ファイル単体では使用できません。必ず画像または動画と一緒にアップロードしてください。
+- **記入例（概要欄）**：
+  > 「`<Picture 1>`の女性が、`<Video 1>`の音楽と歌に合わせてリップシンクし、リズムよく踊るミュージックビデオ。映像は使用せず、`<Video 1>`の音声トラックを全編に使用する。」
 """)
 
 # --------------------------------------------------------------------------------
@@ -227,7 +271,11 @@ if api_key:
             )
 
         st.markdown("---")
-        st.subheader("2. 動画のストーリー・フレーム間の変化を指定")
+        st.subheader("2. 演出設定と動画のストーリー")
+        
+        # 追加機能UIの描画
+        video_style, use_text, overlay_text, text_style = render_style_and_text_options()
+        
         user_summary = st.text_area(
             "作りたい動画の展開、または1stからLastへ向けての変化・アクションを入力してください（日本語OK）",
             placeholder="例：<Picture 1>のキャラクターが剣を振り下ろし、爆発とともに<Picture 2>のポーズに変化する。",
@@ -262,6 +310,8 @@ if api_key:
                             )
                             frame_info += f"- <Picture {'2' if first_frame else '1'}>: Lastフレーム（終了画像）\n"
 
+                        enhanced_user_summary = build_enhanced_summary(user_summary, video_style, use_text, overlay_text, text_style)
+
                         system_prompt = f"""
 あなたはMiniMax H3 FL2VA (First-and-Last-Frame Mode) 専門プロンプト生成AIです。
 提供されたキーフレーム画像情報と指示、および以下の【公式プロンプトルール】に完全準拠して、FL2VA公式規格(3ブロック構造)の英語プロンプトと和訳を出力してください。
@@ -273,8 +323,7 @@ if api_key:
 【フレーム情報】
 {frame_info if frame_info else "テキストのみのT2V生成"}
 
-【ユーザーの動画指示】
-{user_summary}
+{enhanced_user_summary}
 
 【出力フォーマット】
 以下の3つのブロックのみを出力してください（subject_definitions や retention_analysis は絶対に使用しないでください）。
@@ -380,25 +429,25 @@ non_diegetic_music:
 
                 # 動画のマルチセレクト
                 if vid_files:
-                    st.markdown("#### 🎥 動画のガイド")
+                    st.markdown("#### 🎥 動画のガイド（※動画音声は ref_video_audio_n ピンに結線します）")
                     for i, file in enumerate(vid_files, 1):
                         c1, c2 = st.columns([1, 2])
                         with c1:
                             roles = st.multiselect(
                                 f"<Video {i}> の役割",
-                                ["ダンス・アクション", "カメラワーク", "全体構造", "音楽", "音声"],
+                                ["ダンス・アクション", "カメラワーク", "全体構造", "音声・音楽トラック (ref_video_audio)"],
                                 default=[],
                                 key=f"r_vid_{i}",
                             )
                         with c2:
                             detail = st.text_input(
                                 f"<Video {i}> のどの部分を使うか？",
-                                placeholder="例：ダンスモーションだけ",
+                                placeholder="例：モーションと音声トラックを使用",
                                 key=f"r_vid_d_{i}",
                             )
                         role_str = "、".join(roles) if roles else "全体"
                         file_instructions.append(
-                            f"- <Video {i}>: 役割=[{role_str}], 指示=[{detail if detail else '全体の動き'}]"
+                            f"- <Video {i}>: 役割=[{role_str}], 指示=[{detail if detail else '全体の動きと音声'}]"
                         )
 
                 # 音声のマルチセレクト
@@ -425,10 +474,14 @@ non_diegetic_music:
                         )
 
             st.markdown("---")
-            st.subheader("3. 動画の全体ストーリー・概要")
+            st.subheader("3. 演出設定と動画の全体ストーリー")
+            
+            # 追加機能UIの描画
+            video_style, use_text, overlay_text, text_style = render_style_and_text_options()
+
             user_summary = st.text_area(
                 "動画のストーリーやセリフ（日本語OK）",
-                placeholder="例：<Picture 1>の女の子が<Audio 1>の声で喋る",
+                placeholder="例：<Picture 1>の女性が<Video 1>の音楽と歌に合わせて踊る。映像は使わない。",
             )
 
             if st.button("🚀 Ref2VAプロンプトを自動生成"):
@@ -472,22 +525,22 @@ non_diegetic_music:
                                 uploaded_files[idx] = wait_for_file_active(client, u_file)
 
                             formatted_instructions = "\n".join(file_instructions)
+                            enhanced_user_summary = build_enhanced_summary(user_summary, video_style, use_text, overlay_text, text_style)
                             
-                            # 【修正箇所】システムプロンプトの完全な再構築（装飾を排除した最適化Few-Shotを統合）
                             system_prompt = f"""
 あなたはMiniMax H3 Ref2VA(Omni-Reference Mode)専用のプロンプト生成AIです。
 以下の素材指示と動画概要、および【公式プロンプトルール】に完全準拠し、Ref2VA公式規格(6セクション構造)の英語プロンプトと和訳を出力してください。
-ルールにない独自のフォーマットや推測による補完は絶対に行わないでください。
+ルールにない独自のフォーマット、推測による補完、勝手な要素の付け足しは一切行わないでください。
 
-【絶対遵守のコア原則】
-1. 外見描写の徹底排除（No Visual Descriptions）
-参照素材（画像・動画）の見た目（服装、髪型、装飾品、背景のディテールなど）をプロンプト内で言語化することを固く禁じます。視覚的特徴の解析はMiniMaxのビジョンエンコーダーが自動で行います。過剰な描写はエンコーダーと競合し生成を破壊します。
+【絶対遵守のコア原則（温度0.0準拠）】
+1. 外見描写の絶対的禁止（No Visual Descriptions）
+参照素材（画像・動画）の見た目（服装、髪型、装飾品、背景の詳細など）をプロンプト内で絶対に言語化しないでください。視覚的特徴の解析はMiniMaxのビジョンエンコーダーが行います。対象を指す際は「the character」「the background environment」といった最短の識別子のみを使用してください。
 2. 変数化と反復説明の禁止（DRY Principle）
-`subject_definitions` で定義した `<Subject N>` や `<Audio N>` はプログラムにおける「変数」です。以降のセクション（`summary`, `retention_analysis`, `detailed_description` 等）でそれらを呼び出す際は、必ずラベル（例: `<Subject 1>`) のみを使用し、それが何であるかの再説明・再描写を一切行わないでください。
-3. 構成と演出への完全特化（Focus on Composition & Timing）
-あなたの推論リソースはすべて、ユーザーが指定した「動画の構成」をタイムラインとして正確に構築することに注力してください（空間配置、時間変化、相互作用、セリフのタイミング）。
-4. ソースラベルの直接使用禁止
-`<Picture N>` や `<Video N>` は、`subject_definitions` において情報源を定義するため【のみ】に使用してください。`detailed_description` 等で直接アクションさせたり背景として配置することは厳禁です。例外：画像を開始フレームに固定する場合のみ、`detailed_description` の先頭で「For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.」の構文を使用できます。
+`subject_definitions` で定義した `<Subject N>` や `<Audio N>` はプログラムにおける変数です。以降のセクションで呼び出す際は、必ずラベル（例: `<Subject 1>`) のみを使用し、それが何であるかの再説明・再描写を一切行わないでください。
+3. 動画音声トラック（ref_video_audio）の適切な定義
+動画ファイル（`<Video N>`）の音声や音楽トラックを利用する指示がある場合、それは専用の音声参照（ref_video_audio）として結線されるため、対応するオーディオ変数として定義し、サウンドトラックセクションで正しく適用してください。
+4. セリフ・歌詞の捏造の絶対禁止（No Hallucination of Dialogue）
+ユーザーが具体的な歌詞やセリフのテキストを明示していない場合、AIが勝手に内容を創作して `<d>[言語] セリフ </d>` のようなリップシンク用タグを使用することを固く禁じます。「音楽と歌に合わせて歌って踊る」「リップシンクする」といった動作の指示のみがある場合は、テキストを捏造せず、単に「singing in lip-sync and dancing in rhythm to <Video N>`s audio track」のように動作としてのみ描写してください。
 
 【公式プロンプトルール (base-en.md)】
 {base_rules}
@@ -498,41 +551,34 @@ non_diegetic_music:
 【素材指示】
 {formatted_instructions}
 
-【ユーザーの動画概要】
-{user_summary}
+{enhanced_user_summary}
 
-【最適化されたプロンプトの出力例（Few-Shot Example）】
-※ユーザーの指示に基づいてプロンプトを構築する際、以下の例の構造・文体・抽象度を【完全に模倣】してください。視覚的な装飾を徹底的に削ぎ落としています。
+【出力フォーマット】
+以下の構成に完全に一致させて出力してください。余分な説明や挨拶は一切不要です。
 
 ===ENGLISH_PROMPT===
 subject_definitions:
-<Subject 1> is the background environment extracted from <Picture 1>.
-<Subject 2> is the dog extracted from <Picture 2>, <Picture 3>, and <Picture 4>.
-<Subject 3> is the primary character, whose appearance and motion are defined by <Video 1>.
-<Subject 4> is the secondary character extracted from <Video 2>.
-<Audio 1> is the voice-timbre reference for <Subject 3>, extracted from <Video 1>.
+<Subject 1> is the character whose visual identity and appearance are defined by <Picture 1>.
+<Subject 2> is the motion structure and rhythm defined by <Video 1>.
+<Audio 1> is the music and vocal track extracted from <Video 1>, which is fully reused in the target video.
 
 summary:
-[reference generation + audio reference] The target video shows <Subject 3> eating a cookie in <Subject 1>. <Subject 4> enters with <Subject 2>, which lunges toward the cookie. The three-shot exchange uses <Audio 1> as the voice-timbre reference for <Subject 3> and ends with a canned audience laugh.
+[reference generation + audio reuse] The target video features <Subject 1> performing a music video where she sings in lip-sync and dances in rhythm to <Audio 1> throughout the entire duration.
 
 retention_analysis:
-<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the environment is retained.
-<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - the dog's appearance is retained.
-<Subject 3> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the primary character's identity is retained.
-<Subject 4> (appears in [Shot 1], [Shot 2]): fully_preserved - the secondary character's identity is retained.
-<Audio 1>: reference - its vocal timbre guides the dialogue delivery of <Subject 3> without copying the original signal.
+<Subject 1> (appears in [Shot 1]): fully_preserved - the appearance and features of the character from <Picture 1> are fully retained.
+<Subject 2> (appears in [Shot 1]): reference - the motion and dance timing from <Video 1> guide the performance.
+<Audio 1>: fully_copy - the complete music and vocal track from <Video 1> serves as the target video's complete final audio track via ref_video_audio.
 
 detailed_description:
-The target video uses a realistic multi-camera sitcom style with warm indoor lighting.
-[Shot 1] A medium shot establishes <Subject 1>. <Subject 3> (S1) sits on the sofa holding a chocolate-chip cookie. From the left, <Subject 4> enters holding the leash of <Subject 2>. The dog lunges toward the cookie and pulls the leash taut. <Subject 3> (S1) jerks her hand back and, using the clear youthful voice timbre referenced from <Audio 1>, exclaims with light annoyance, <d>[English] Hey! Watch your dog!</d> She closes her lips and guards the cookie while <Subject 4> pulls the dog back.
-[Shot 2] At 00:03.000, the shot cuts to a close-up of <Subject 4> (S2) sitting beside <Subject 3> on the sofa and holding <Subject 2> securely in his arms. <Subject 4> (S2) says in a casual young male voice with a playful tone and an easy conversational pace, <d>[English] He just likes cookies more than me.</d> He closes his mouth into an apologetic smile and strokes the dog.
-[Shot 3] At 00:05.000, the shot cuts to a close-up of <Subject 3> (S1). Her annoyance softens as she looks toward <Subject 2>. <Subject 3> (S1) replies in the same voice referenced from <Audio 1> with an amused cadence, <d>[English] Well, he has good taste at least.</d> She smiles and raises the cookie in a small toast-like gesture. A classic canned audience laugh begins immediately after the line and continues through the final frame.
+The target video uses a cinematic style.
+[Shot 1] The shot opens referencing <Picture 1>. <Subject 1> (S1) performs dance choreography in time with the rhythm of <Audio 1>, singing in lip-sync throughout the continuous shot. The camera maintains a stable framing.
 
 overall_soundscape:
-Soft indoor coffee-shop room tone continues throughout the scene.
+N/A
 
 non_diegetic_music:
-N/A
+<Audio 1> is directly reused as the complete final audio track and rhythm source.
 
 ===JAPANESE_TRANSLATION===
 【日本語訳・解説】
